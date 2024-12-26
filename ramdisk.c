@@ -18,6 +18,8 @@
 #define DEFAULT_RAMDISK_IMAGE_PATH "/var/tmp/ramdisk.img"
 #define DEFAULT_MOUNT_PATH "/mnt/ramdisk"
 
+#define BUF_SIZE 256
+
 size_t parse_size_with_unit(const char *size_str) {
     size_t size = 0;
     char unit = 0;
@@ -131,10 +133,11 @@ int main(int argc, char *argv[]) {
     }
     
     printf("Creating RAM disk of size %zu\n", ramdisk_size);
-    // Use tmpfs
+
+    // create ramdisk using tmpfs
     if (use_tmpfs) {
         // Use tmpfs
-        char mount_options[128];
+        char mount_options[BUF_SIZE];
 
         printf("Using tmpfs to mount ramdisk.\n");
         snprintf(mount_options, sizeof(mount_options), "size=%zu", ramdisk_size);
@@ -147,7 +150,7 @@ int main(int argc, char *argv[]) {
         return 0; // Done
     }
 
-    // Create ramdisk
+    // Create ramdisk with loop device
     int fd = open(ramdisk_image_path, O_RDWR | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         perror("Failed to create ramdisk");
@@ -176,12 +179,20 @@ int main(int argc, char *argv[]) {
     printf("Ramdisk and partition table created successfully.\n");
 
     printf("Formatting ramdisk with command: mkfs.ext4 %s\n", ramdisk_image_path);
-    char format_cmd[256];
+    char format_cmd[BUF_SIZE];
     snprintf(format_cmd, sizeof(format_cmd), "mkfs.ext4 %s", ramdisk_image_path);
-    system(format_cmd);
+    if (system(format_cmd) != 0) {
+        perror("Failed to format ramdisk");
+        return 1;
+    }
 
     printf("Associating ramdisk with loop device.\n");
-    system("losetup /dev/loop0 /var/tmp/ramdisk.img");
+    char losetup_cmd[BUF_SIZE]; // Buffer to hold the full command
+    snprintf(losetup_cmd, sizeof(losetup_cmd), "losetup /dev/loop0 %s", ramdisk_image_path);
+    if (system(losetup_cmd) != 0) {
+        perror("Failed to associate ramdisk with loop device");
+        return 1;
+    }
 
     printf("Mounting ramdisk to %s.\n", mount_path);
     if (mount("/dev/loop0", mount_path, "ext4", MS_MGC_VAL, NULL) == -1) {
