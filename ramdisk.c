@@ -47,11 +47,24 @@ size_t parse_size_with_unit(const char *size_str) {
     return size;
 }
 
+void print_help(const char *program_name) {
+    printf("Usage: %s [-s size] [-h]\n", program_name);
+    printf("Options:\n");
+    printf("  -s, --size   Set the RAM disk size (e.g., 16M, 1G)\n");
+    printf("  -h, --help   Display this help message\n");
+}
+
 int main(int argc, char *argv[]) {
     size_t ramdisk_size = DEFAULT_RAMDISK_SIZE;
 
+    static struct option long_options[] = {
+        {"size", required_argument, NULL, 's'},
+        {"help", no_argument, NULL, 'h'},
+        {0, 0, 0, 0}
+    };
+
     int opt;
-    while ((opt = getopt(argc, argv, "s:")) != -1) {
+    while ((opt = getopt_long(argc, argv, "s:h", long_options, NULL)) != -1) {
         switch (opt) {
             case 's': // Custom RAM disk size
                 ramdisk_size = parse_size_with_unit(optarg);
@@ -60,8 +73,12 @@ int main(int argc, char *argv[]) {
                     return 1;
                 }
                 break;
+            case 'h': // print help
+                print_help(argv[0]);
+                return 0;
             default:
-                fprintf(stderr, "Usage: %s [-s size_in_MB]\n", argv[0]);
+                fprintf(stderr, "Invalid option: %c\n", opt);
+                print_help(argv[0]);
                 return 1;
         }
     }
@@ -85,7 +102,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("Creating RAM disk of size %zu MB\n", ramdisk_size / (1024 * 1024));
+    printf("Creating RAM disk of size %zu\n", ramdisk_size);
 
     // Create ramdisk
     int fd = open(RAMDISK_IMAGE_PATH, O_RDWR | O_CREAT | O_TRUNC, 0644);
