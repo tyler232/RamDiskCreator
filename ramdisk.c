@@ -52,11 +52,12 @@ size_t parse_size_with_unit(const char *size_str) {
 }
 
 void print_help(const char *program_name) {
-    printf("Usage: %s [-s size] [-h]\n", program_name);
+    printf("Usage: %s [options]\n", program_name);
     printf("Options:\n");
     printf("  -s, --size   Set the RAM disk size (e.g., 16M, 1G)\n");
     printf("  -p, --path   Set the path for the RAM disk image (default: /var/tmp/ramdisk.img)\n");
     printf("  -t, Use tmpfs\n");
+    printf("  -m, Set the mount path for the RAM disk (default: /mnt/ramdisk)\n");
     printf("  -h, --help   Display this help message\n");
 }
 
@@ -74,7 +75,7 @@ int main(int argc, char *argv[]) {
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "s:p:th", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "s:p:m:th", long_options, NULL)) != -1) {
         switch (opt) {
             case 's': // Custom RAM disk size
                 ramdisk_size = parse_size_with_unit(optarg);
@@ -88,6 +89,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 't': // Use tmpfs instead of file-backed ramdisk
                 use_tmpfs = 1;
+                break;
+            case 'm': // Custom mount path
+                mount_path = optarg;
                 break;
             case 'h': // print help
                 print_help(argv[0]);
@@ -120,6 +124,12 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Create mount directory
+    if (mkdir(mount_path, 0777) != 0 && errno != EEXIST) {
+        perror("Failed to create mount directory");
+        return 1;
+    }
+    
     printf("Creating RAM disk of size %zu\n", ramdisk_size);
     // Use tmpfs
     if (use_tmpfs) {
@@ -127,11 +137,6 @@ int main(int argc, char *argv[]) {
         char mount_options[128];
 
         printf("Using tmpfs to mount ramdisk.\n");
-        if (mkdir(mount_path, 0777) != 0 && errno != EEXIST) {
-            perror("Failed to create mount directory");
-            return 1;
-        }
-
         snprintf(mount_options, sizeof(mount_options), "size=%zu", ramdisk_size);
         if (mount("tmpfs", mount_path, "tmpfs", 0, mount_options) != 0) {
             perror("Failed to mount tmpfs");
