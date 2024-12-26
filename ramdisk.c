@@ -9,9 +9,43 @@
 #include <sys/types.h>
 #include <getopt.h>
 #include <sys/statvfs.h>
+#include <ctype.h>
 
 #define DEFAULT_RAMDISK_SIZE (16 * 1024 * 1024) // 16 MB
 #define RAMDISK_IMAGE_PATH "/var/tmp/ramdisk.img"
+
+size_t parse_size_with_unit(const char *size_str) {
+    size_t size = 0;
+    char unit = 0;
+
+    while (*size_str && isdigit(*size_str)) {
+        size = size * 10 + (*size_str - '0');
+        size_str++;
+    }
+
+    if (*size_str) {
+        unit = tolower(*size_str);
+    }
+
+    switch (unit) {
+        case 'k': // KB
+            size *= 1024;
+            break;
+        case 'm': // MB
+            size *= 1024 * 1024;
+            break;
+        case 'g': // GB
+            size *= 1024 * 1024 * 1024;
+            break;
+        case 0: // no unit specified, assume bytes
+            break;
+        default:
+            fprintf(stderr, "Invalid unit specified. Use K, M, or G.\n");
+            return 0;
+    }
+
+    return size;
+}
 
 int main(int argc, char *argv[]) {
     size_t ramdisk_size = DEFAULT_RAMDISK_SIZE;
@@ -20,7 +54,7 @@ int main(int argc, char *argv[]) {
     while ((opt = getopt(argc, argv, "s:")) != -1) {
         switch (opt) {
             case 's': // Custom RAM disk size
-                ramdisk_size = strtoull(optarg, NULL, 10) * 1024 * 1024; // Convert MB to bytes
+                ramdisk_size = parse_size_with_unit(optarg);
                 if (ramdisk_size == 0) {
                     fprintf(stderr, "Invalid RAM disk size specified.\n");
                     return 1;
